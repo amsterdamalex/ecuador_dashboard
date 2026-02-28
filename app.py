@@ -52,8 +52,17 @@ try:
         keyword_match,
         tag_themes,
     )
-except ImportError as e:
+except Exception as e:
     _import_errors.append(f"Analysis module failed: {e}")
+    # Stubs so the rest of the app doesn't crash with NameError
+    def compute_severity(t, s): return "🟢 Low"
+    def compute_sentiment(t): return ("Neutral", 0.0)
+    def detect_locations(t): return []
+    def extract_entities(t, nlp): return {}
+    def generate_briefing(df, adf, d): return "Briefing unavailable — analysis module not loaded."
+    def highlight(t, kws): return t
+    def keyword_match(r, kws): return True
+    def tag_themes(t, s): return []
 
 try:
     from config import KEYWORD_THEMES, SOURCES
@@ -64,8 +73,13 @@ except ImportError as e:
 
 try:
     from fetchers import fetch_acled, fetch_all_rss, fetch_newsapi
-except ImportError as e:
+except Exception as e:
     _import_errors.append(f"Fetchers module failed: {e}")
+    # Stubs so the rest of the app doesn't crash with NameError
+    def fetch_all_rss(sources, days): return ([], [f"RSS unavailable: {e}"])
+    def fetch_newsapi(key, kws, days): return []
+    def fetch_acled(email, key, days):
+        import pandas as _pd; return _pd.DataFrame()
 
 
 # ── spaCy (lazy — loaded only when Entities tab is used) ─────────────────────
@@ -341,80 +355,85 @@ with tab_map:
     st.markdown("### 🗺️ Incident Location Map")
     st.caption("Locations inferred from article text. ACLED points shown if API key provided.")
 
-    m = folium.Map(
-        location=[-1.8, -78.2],
-        zoom_start=6,
-        tiles="CartoDB dark_matter",
-    )
+    if folium is None:
+        st.warning("Map disabled — `folium` / `streamlit-folium` not installed.")
+    else:
+        m = folium.Map(
+            location=[-1.8, -78.2],
+            zoom_start=6,
+            tiles="CartoDB dark_matter",
+        )
 
-    # Plot news-derived locations
-    plotted = 0
-    for _, row in df.iterrows():
-        locs = row.get("Locations", [])
-        for loc_name, lat, lon in locs:
-            color = {"🔴 High": "red", "🟡 Medium": "orange"}.get(row["Severity"], "green")
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=7,
-                color=color,
-                fill=True,
-                fill_opacity=0.8,
-                popup=folium.Popup(
-                    f"<b>{row['Title'][:80]}</b><br>"
-                    f"{row['Source']} · {row['Published'][:10]}<br>"
-                    f"Severity: {row['Severity']}<br>"
-                    f"<a href='{row['Link']}' target='_blank'>Read →</a>",
-                    max_width=300,
-                ),
-                tooltip=f"{loc_name} — {row['Severity']}",
-            ).add_to(m)
-            plotted += 1
-
-    # Plot ACLED events
-    if not acled_df.empty:
-        for _, ev in acled_df.iterrows():
-            try:
-                lat = float(ev.get("latitude", 0))
-                lon = float(ev.get("longitude", 0))
-                folium.Marker(
+        # Plot news-derived locations
+        plotted = 0
+        for _, row in df.iterrows():
+            locs = row.get("Locations", [])
+            for loc_name, lat, lon in locs:
+                color = {"🔴 High": "red", "🟡 Medium": "orange"}.get(row["Severity"], "green")
+                folium.CircleMarker(
                     location=[lat, lon],
-                    icon=folium.Icon(color="purple", icon="exclamation-sign", prefix="glyphicon"),
+                    radius=7,
+                    color=color,
+                    fill=True,
+                    fill_opacity=0.8,
                     popup=folium.Popup(
-                        f"<b>ACLED: {ev.get('event_type','')}</b><br>"
-                        f"{ev.get('sub_event_type','')}<br>"
-                        f"Actor: {ev.get('actor1','')}<br>"
-                        f"Location: {ev.get('location','')}<br>"
-                        f"Date: {ev.get('event_date','')}<br>"
-                        f"Fatalities: {ev.get('fatalities',0)}<br>"
-                        f"<small>{str(ev.get('notes',''))[:200]}</small>",
-                        max_width=320,
+                        f"<b>{row['Title'][:80]}</b><br>"
+                        f"{row['Source']} · {row['Published'][:10]}<br>"
+                        f"Severity: {row['Severity']}<br>"
+                        f"<a href='{row['Link']}' target='_blank'>Read →</a>",
+                        max_width=300,
                     ),
-                    tooltip=f"ACLED: {ev.get('event_type','')} — {ev.get('location','')}",
+                    tooltip=f"{loc_name} — {row['Severity']}",
                 ).add_to(m)
-            except Exception:
-                continue
+                plotted += 1
 
-    # Legend
-    legend_html = """
-    <div style='position:fixed;bottom:30px;left:30px;background:#111;padding:10px;
-                border:1px solid #333;border-radius:4px;font-family:monospace;font-size:11px;color:#d4dbe8;'>
-    <b>Legend</b><br>
-    🔴 High severity (news)<br>
-    🟡 Medium severity (news)<br>
-    🟢 Low severity (news)<br>
-    🟣 ACLED conflict event<br>
-    </div>
-    """
-    m.get_root().html.add_child(folium.Element(legend_html))
+        # Plot ACLED events
+        if not acled_df.empty:
+            for _, ev in acled_df.iterrows():
+                try:
+                    lat = float(ev.get("latitude", 0))
+                    lon = float(ev.get("longitude", 0))
+                    folium.Marker(
+                        location=[lat, lon],
+                        icon=folium.Icon(color="purple", icon="exclamation-sign", prefix="glyphicon"),
+                        popup=folium.Popup(
+                            f"<b>ACLED: {ev.get('event_type','')}</b><br>"
+                            f"{ev.get('sub_event_type','')}<br>"
+                            f"Actor: {ev.get('actor1','')}<br>"
+                            f"Location: {ev.get('location','')}<br>"
+                            f"Date: {ev.get('event_date','')}<br>"
+                            f"Fatalities: {ev.get('fatalities',0)}<br>"
+                            f"<small>{str(ev.get('notes',''))[:200]}</small>",
+                            max_width=320,
+                        ),
+                        tooltip=f"ACLED: {ev.get('event_type','')} — {ev.get('location','')}",
+                    ).add_to(m)
+                except Exception:
+                    continue
 
-    st_folium(m, width=None, height=550, returned_objects=[])
+        # Legend
+        legend_html = """
+        <div style='position:fixed;bottom:30px;left:30px;background:#111;padding:10px;
+                    border:1px solid #333;border-radius:4px;font-family:monospace;font-size:11px;color:#d4dbe8;'>
+        <b>Legend</b><br>
+        🔴 High severity (news)<br>
+        🟡 Medium severity (news)<br>
+        🟢 Low severity (news)<br>
+        🟣 ACLED conflict event<br>
+        </div>
+        """
+        m.get_root().html.add_child(folium.Element(legend_html))
 
-    if plotted == 0 and acled_df.empty:
-        st.warning("No locatable incidents found. Add ACLED credentials for richer map data.")
+        st_folium(m, width=None, height=550, returned_objects=[])
+
+        if plotted == 0 and acled_df.empty:
+            st.warning("No locatable incidents found. Add ACLED credentials for richer map data.")
 
 # ── TAB 3: ANALYTICS ─────────────────────────────────────────────────────────
 with tab_analytics:
-    if df.empty:
+    if px is None:
+        st.warning("Charts disabled — `plotly` not installed.")
+    elif df.empty:
         st.info("No data to analyse.")
     else:
         st.markdown("### 📈 Trend Analytics")
@@ -512,15 +531,18 @@ with tab_entities:
                 with cols[i % len(cols)]:
                     st.markdown(f"**{readable}**")
                     ent_df = pd.DataFrame(counts, columns=["Entity", "Count"])
-                    fig = px.bar(ent_df, x="Count", y="Entity", orientation="h",
-                                 template="plotly_dark",
-                                 color="Count", color_continuous_scale="YlOrRd")
-                    fig.update_layout(
-                        paper_bgcolor="#0a0c10", plot_bgcolor="#111418",
-                        font_family="IBM Plex Mono", height=350,
-                        showlegend=False, margin=dict(l=0, r=0, t=20, b=0),
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    if px is not None:
+                        fig = px.bar(ent_df, x="Count", y="Entity", orientation="h",
+                                     template="plotly_dark",
+                                     color="Count", color_continuous_scale="YlOrRd")
+                        fig.update_layout(
+                            paper_bgcolor="#0a0c10", plot_bgcolor="#111418",
+                            font_family="IBM Plex Mono", height=350,
+                            showlegend=False, margin=dict(l=0, r=0, t=20, b=0),
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.dataframe(ent_df)
 
 # ── TAB 5: ACLED ─────────────────────────────────────────────────────────────
 with tab_acled:
@@ -544,7 +566,7 @@ with tab_acled:
         if "location" in acled_df.columns:
             a4.metric("Locations", acled_df["location"].nunique())
 
-        if "event_type" in acled_df.columns:
+        if "event_type" in acled_df.columns and px is not None:
             fig = px.histogram(acled_df, x="event_type", title="Events by type",
                                template="plotly_dark", color="event_type",
                                color_discrete_sequence=px.colors.sequential.YlOrRd)
