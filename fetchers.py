@@ -19,7 +19,8 @@ def fetch_rss(url: str, days_back: int) -> list[dict]:
     try:
         # feedparser.parse(url) uses urllib with NO timeout — can hang forever.
         # Fetch the raw XML ourselves with a strict timeout, then parse the bytes.
-        resp = requests.get(url, timeout=10)
+        # (3s connect, 7s read) — fail fast on unreachable hosts.
+        resp = requests.get(url, timeout=(3, 7))
         feed = feedparser.parse(resp.content)
     except Exception:
         return []
