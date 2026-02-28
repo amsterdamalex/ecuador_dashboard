@@ -280,7 +280,10 @@ keyword_list = list(set(k.lower() for k in keyword_list))
 def fetch_rss(url: str, days_back: int) -> list[dict]:
     cutoff = datetime.now() - timedelta(days=days_back)
     try:
-        feed = feedparser.parse(url)
+        # feedparser.parse(url) uses urllib with NO timeout — can hang forever.
+        # Fetch the raw XML ourselves with a strict timeout, then parse the bytes.
+        resp = requests.get(url, timeout=10)
+        feed = feedparser.parse(resp.content)
     except Exception:
         return []
     entries = []
@@ -495,9 +498,13 @@ with st.spinner("📡 Fetching public feeds…"):
             return name, None, f"{name}: {e}"
 
     with ThreadPoolExecutor(max_workers=max(len(selected_sources), 1)) as pool:
-        futures = [pool.submit(_fetch_one, name) for name in selected_sources]
-        for fut in as_completed(futures):
-            name, results, err = fut.result()
+        futures = {pool.submit(_fetch_one, name): name for name in selected_sources}
+        for fut in as_completed(futures, timeout=30):
+            try:
+                name, results, err = fut.result(timeout=15)
+            except Exception:
+                rss_errors.append(f"{futures[fut]}: timed out")
+                continue
             if err:
                 rss_errors.append(err)
             elif results:
