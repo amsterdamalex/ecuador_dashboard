@@ -1,6 +1,10 @@
-streamlit
-pandas
-feedparser
-requests
-python3-dev
+streamlit>=1.32.0
+pandas>=2.0.0
+feedparser>=6.0.0
+requests>=2.31.0
+folium>=0.16.0
+streamlit-folium>=0.20.0
+textblob>=0.18.0
+spacy>=3.7.0,<3.8.0
+plotly>=5.20.0
 https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.7.0/es_core_news_sm-3.7.0-py3-none-any.whl
