@@ -5,6 +5,7 @@ Depends on Streamlit for @st.cache_data. All network I/O isolated here.
 """
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import feedparser
@@ -13,13 +14,10 @@ import requests
 import streamlit as st
 
 
-@st.cache_data(ttl=1800)
-def fetch_rss(url: str, days_back: int) -> list[dict]:
+def _fetch_single_rss(url: str, days_back: int) -> list[dict]:
+    """Fetch one RSS feed. No Streamlit dependency — safe to call from threads."""
     cutoff = datetime.now() - timedelta(days=days_back)
     try:
-        # feedparser.parse(url) uses urllib with NO timeout — can hang forever.
-        # Fetch the raw XML ourselves with a strict timeout, then parse the bytes.
-        # (3s connect, 7s read) — fail fast on unreachable hosts.
         resp = requests.get(url, timeout=(3, 7))
         feed = feedparser.parse(resp.content)
     except Exception:
@@ -39,6 +37,42 @@ def fetch_rss(url: str, days_back: int) -> list[dict]:
             "_pub_dt":   pub_date or datetime.min,
         })
     return entries
+
+
+@st.cache_data(ttl=1800)
+def fetch_all_rss(source_urls: dict[str, str], days_back: int) -> tuple[list[dict], list[str]]:
+    """Fetch all RSS feeds in parallel. Cached on the main thread."""
+    all_news: list[dict] = []
+    errors: list[str] = []
+
+    if not source_urls:
+        return all_news, errors
+
+    def _fetch_one(name: str, url: str):
+        try:
+            return name, _fetch_single_rss(url, days_back), None
+        except Exception as e:
+            return name, None, f"{name}: {e}"
+
+    pool = ThreadPoolExecutor(max_workers=len(source_urls))
+    futures = {pool.submit(_fetch_one, name, url): name for name, url in source_urls.items()}
+    try:
+        for fut in as_completed(futures, timeout=20):
+            try:
+                name, results, err = fut.result(timeout=10)
+            except Exception:
+                errors.append(f"{futures[fut]}: timed out")
+                continue
+            if err:
+                errors.append(err)
+            elif results:
+                all_news.extend(results)
+    except TimeoutError:
+        errors.append("Some feeds timed out")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    return all_news, errors
 
 
 @st.cache_data(ttl=3600)
