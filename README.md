@@ -9,6 +9,8 @@
 [![License](https://img.shields.io/badge/License-Educational_Use-yellow?style=flat-square)](#disclaimer)
 [![Sources](https://img.shields.io/badge/Sources-Public_Only-52b788?style=flat-square)](#data-sources)
 [![ACLED](https://img.shields.io/badge/ACLED-Integrated-e05252?style=flat-square)](https://acleddata.com)
+[![Tests](https://img.shields.io/badge/Tests-56_passing-52b788?style=flat-square)](#testing)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](#docker)
 
 **Real-time monitoring of security, political, and humanitarian developments in Ecuador.**
 Built exclusively on open, public data sources. No scraping. No MILINT. Research & NGO use only.
@@ -87,7 +89,7 @@ python -m textblob.download_corpora
 ### 2 · Run
 
 ```bash
-streamlit run ecuador_osint_v2.py
+streamlit run app.py
 ```
 
 Open `http://localhost:8501` in your browser.
@@ -103,11 +105,34 @@ Paste keys directly into the sidebar at runtime. No `.env` file needed for local
 
 ---
 
+## ◈ Docker
+
+Build and run with a single command — no local Python setup needed:
+
+```bash
+docker compose up --build
+```
+
+Opens at `http://localhost:8501`. All dependencies are pre-installed in the image.
+
+To pass API keys via environment:
+
+```bash
+# Create a .env file (git-ignored)
+echo 'NEWSAPI_KEY=your_key_here' >> .env
+echo 'ACLED_KEY=your_key_here' >> .env
+echo 'ACLED_EMAIL=you@example.com' >> .env
+```
+
+Then uncomment the `env_file` section in `docker-compose.yml`.
+
+---
+
 ## ◈ Deploy to Streamlit Cloud
 
 **1.** Push to GitHub (this repo is already set up)
 
-**2.** Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → connect this repo → set main file to `ecuador_osint_v2.py`
+**2.** Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → connect this repo → set main file to `app.py`
 
 **3.** Add secrets so keys are pre-loaded (Settings → Secrets):
 
@@ -125,10 +150,38 @@ ACLED_EMAIL   = "your@email.com"
 
 ```
 ecuador_dashboard/
-├── ecuador_osint_v2.py   ← main application
-├── requirements.txt      ← all dependencies including spaCy model
-└── README.md
+├── app.py                ← Streamlit entrypoint (UI wiring)
+├── config.py             ← Constants (sources, keywords, locations)
+├── analysis.py           ← Pure functions (severity, sentiment, NER, themes)
+├── fetchers.py           ← Data fetching (RSS, NewsAPI, ACLED)
+├── test_dashboard.py     ← 56-test suite
+├── requirements.txt      ← All dependencies including spaCy model
+├── Dockerfile            ← Production container
+├── docker-compose.yml    ← One-command local deployment
+├── .dockerignore
+├── .gitignore
+└── .streamlit/
+    └── config.toml       ← Performance tuning (no file watcher, no telemetry)
 ```
+
+### Module responsibilities
+
+| Module | Lines | Depends on Streamlit? | Purpose |
+|--------|------:|:---------------------:|---------|
+| `config.py` | ~70 | No | Constants — sources, keyword themes, severity words, geocoordinates |
+| `analysis.py` | ~130 | No | Pure functions — severity scoring, sentiment, NER, theme tagging, briefing generation |
+| `fetchers.py` | ~95 | Yes (`@st.cache_data`) | Network I/O — RSS, NewsAPI, ACLED with timeouts and caching |
+| `app.py` | ~500 | Yes | UI — page config, sidebar, tabs, charts, map, export |
+
+---
+
+## ◈ Testing
+
+```bash
+pytest test_dashboard.py -v
+```
+
+56 tests covering constants validation, all pure analysis functions, and briefing generation. Tests for `config.py` and `analysis.py` require **zero Streamlit mocks** — they import directly.
 
 ---
 
