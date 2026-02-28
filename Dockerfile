@@ -15,13 +15,13 @@ RUN apt-get update && \
 COPY .streamlit/ .streamlit/
 
 # Copy application code
-COPY ecuador_osint_v2.py .
+COPY config.py analysis.py fetchers.py app.py ./
 
 EXPOSE 8501
 
 HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
-ENTRYPOINT ["streamlit", "run", "ecuador_osint_v2.py", \
+ENTRYPOINT ["streamlit", "run", "app.py", \
             "--server.port=8501", \
             "--server.address=0.0.0.0", \
             "--server.headless=true"]
