@@ -9,7 +9,6 @@ Run:
 """
 
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 import folium
@@ -29,7 +28,7 @@ from analysis import (
     tag_themes,
 )
 from config import KEYWORD_THEMES, SOURCES
-from fetchers import fetch_acled, fetch_newsapi, fetch_rss
+from fetchers import fetch_acled, fetch_all_rss, fetch_newsapi
 
 # ── spaCy (optional) ─────────────────────────────────────────────────────────
 try:
@@ -191,38 +190,9 @@ keyword_list = list(set(k.lower() for k in keyword_list))
 # ─────────────────────────────────────────────────────────────────────────────
 # DATA COLLECTION
 # ─────────────────────────────────────────────────────────────────────────────
-all_news: list[dict] = []
-rss_errors: list[str] = []
-
 with st.spinner("📡 Fetching public feeds…"):
-    def _fetch_one(name: str) -> tuple[str, list[dict] | None, str | None]:
-        url = SOURCES.get(name)
-        if not url:
-            return name, [], None
-        try:
-            return name, fetch_rss(url, days_back), None
-        except Exception as e:
-            return name, None, f"{name}: {e}"
-
-    pool = ThreadPoolExecutor(max_workers=max(len(selected_sources), 1))
-    futures = {pool.submit(_fetch_one, name): name for name in selected_sources}
-    try:
-        for fut in as_completed(futures, timeout=20):
-            try:
-                name, results, err = fut.result(timeout=10)
-            except Exception:
-                rss_errors.append(f"{futures[fut]}: timed out")
-                continue
-            if err:
-                rss_errors.append(err)
-            elif results:
-                all_news.extend(results)
-    except TimeoutError:
-        rss_errors.append("Some feeds timed out")
-    finally:
-        # cancel_futures=True kills any still-running threads immediately
-        # without this, shutdown(wait=True) blocks until ALL futures finish
-        pool.shutdown(wait=False, cancel_futures=True)
+    source_urls = {name: SOURCES[name] for name in selected_sources if name in SOURCES}
+    all_news, rss_errors = fetch_all_rss(source_urls, days_back)
 
 if newsapi_key and keyword_list:
     with st.spinner("📰 Fetching NewsAPI…"):
