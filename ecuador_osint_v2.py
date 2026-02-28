@@ -24,6 +24,9 @@ Install:
 Run:
   streamlit run ecuador_osint_v3.py
 """
+newsapi_key = st.secrets.get("NEWSAPI_KEY", "")
+acled_key   = st.secrets.get("ACLED_KEY", "")
+acled_email = st.secrets.get("ACLED_EMAIL", "")
 
 # ── stdlib ────────────────────────────────────────────────────────────────────
 import json
