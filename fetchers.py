@@ -5,6 +5,7 @@ Depends on Streamlit for @st.cache_data. All network I/O isolated here.
 """
 
 import re
+import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
@@ -13,12 +14,17 @@ import pandas as pd
 import requests
 import streamlit as st
 
+# Global safety net: any socket that doesn't set its own timeout
+# will bail after 10s. Covers DNS resolution hangs that
+# requests' timeout=(connect, read) does NOT cover.
+socket.setdefaulttimeout(10)
+
 
 def _fetch_single_rss(url: str, days_back: int) -> list[dict]:
     """Fetch one RSS feed. No Streamlit dependency — safe to call from threads."""
     cutoff = datetime.now() - timedelta(days=days_back)
     try:
-        resp = requests.get(url, timeout=(3, 7))
+        resp = requests.get(url, timeout=(2, 5))
         feed = feedparser.parse(resp.content)
     except Exception:
         return []
@@ -54,12 +60,12 @@ def fetch_all_rss(source_urls: dict[str, str], days_back: int) -> tuple[list[dic
         except Exception as e:
             return name, None, f"{name}: {e}"
 
-    pool = ThreadPoolExecutor(max_workers=len(source_urls))
+    pool = ThreadPoolExecutor(max_workers=min(len(source_urls), 6))
     futures = {pool.submit(_fetch_one, name, url): name for name, url in source_urls.items()}
     try:
-        for fut in as_completed(futures, timeout=20):
+        for fut in as_completed(futures, timeout=15):
             try:
-                name, results, err = fut.result(timeout=10)
+                name, results, err = fut.result(timeout=5)
             except Exception:
                 errors.append(f"{futures[fut]}: timed out")
                 continue
@@ -67,7 +73,7 @@ def fetch_all_rss(source_urls: dict[str, str], days_back: int) -> tuple[list[dic
                 errors.append(err)
             elif results:
                 all_news.extend(results)
-    except TimeoutError:
+    except Exception:
         errors.append("Some feeds timed out")
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
@@ -86,7 +92,7 @@ def fetch_newsapi(api_key: str, keywords: list[str], days_back: int) -> list[dic
         f"&apiKey={api_key}"
     )
     try:
-        resp = requests.get(url, timeout=10).json()
+        resp = requests.get(url, timeout=8).json()
         if resp.get("status") != "ok":
             return []
         results = []
@@ -123,7 +129,7 @@ def fetch_acled(email: str, key: str, days_back: int) -> pd.DataFrame:
         "&fields=event_date|event_type|sub_event_type|actor1|location|latitude|longitude|fatalities|notes"
     )
     try:
-        resp = requests.get(url, timeout=15).json()
+        resp = requests.get(url, timeout=10).json()
         data = resp.get("data", [])
         if not data:
             return pd.DataFrame()

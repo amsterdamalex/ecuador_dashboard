@@ -30,26 +30,15 @@ from analysis import (
 from config import KEYWORD_THEMES, SOURCES
 from fetchers import fetch_acled, fetch_all_rss, fetch_newsapi
 
-# ── spaCy (optional) ─────────────────────────────────────────────────────────
-try:
-    import spacy
-    SPACY_OK = True
-except ImportError:
-    SPACY_OK = False
-
-
+# ── spaCy (lazy — loaded only when Entities tab is used) ─────────────────────
 @st.cache_resource
 def _load_spacy():
     """Load spaCy model once and cache across reruns."""
     try:
+        import spacy
         return spacy.load("es_core_news_sm")
     except Exception:
         return None
-
-
-nlp = _load_spacy() if SPACY_OK else None
-if nlp is None:
-    SPACY_OK = False
 
 # ── Secrets (Streamlit Cloud) or fall back to sidebar inputs ──────────────────
 _secrets_newsapi = st.secrets.get("NEWSAPI_KEY", "") if hasattr(st, "secrets") else ""
@@ -190,22 +179,33 @@ if extra_keywords:
 keyword_list = list(set(k.lower() for k in keyword_list))
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DATA COLLECTION
+# DATA COLLECTION (fault-tolerant — app renders even if feeds fail)
 # ─────────────────────────────────────────────────────────────────────────────
-with st.spinner("📡 Fetching public feeds…"):
-    source_urls = {name: SOURCES[name] for name in selected_sources if name in SOURCES}
-    all_news, rss_errors = fetch_all_rss(source_urls, days_back)
+all_news: list[dict] = []
+rss_errors: list[str] = []
+acled_df = pd.DataFrame()
+
+try:
+    with st.spinner("📡 Fetching public feeds…"):
+        source_urls = {name: SOURCES[name] for name in selected_sources if name in SOURCES}
+        all_news, rss_errors = fetch_all_rss(source_urls, days_back)
+except Exception as exc:
+    rss_errors.append(f"RSS fetch failed: {exc}")
 
 if newsapi_key and keyword_list:
-    with st.spinner("📰 Fetching NewsAPI…"):
-        newsapi_results = fetch_newsapi(newsapi_key, keyword_list, days_back)
-        all_news.extend(newsapi_results)
+    try:
+        with st.spinner("📰 Fetching NewsAPI…"):
+            newsapi_results = fetch_newsapi(newsapi_key, keyword_list, days_back)
+            all_news.extend(newsapi_results)
+    except Exception:
+        rss_errors.append("NewsAPI fetch failed")
 
-# ACLED
-acled_df = pd.DataFrame()
 if acled_key and acled_email:
-    with st.spinner("🗺️ Fetching ACLED conflict data…"):
-        acled_df = fetch_acled(acled_email, acled_key, days_back)
+    try:
+        with st.spinner("🗺️ Fetching ACLED conflict data…"):
+            acled_df = fetch_acled(acled_email, acled_key, days_back)
+    except Exception:
+        rss_errors.append("ACLED fetch failed")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BUILD DATAFRAME
@@ -443,7 +443,8 @@ with tab_analytics:
 # ── TAB 4: ENTITIES ───────────────────────────────────────────────────────────
 with tab_entities:
     st.markdown("### 🧩 Named Entity Extraction")
-    if not SPACY_OK:
+    nlp = _load_spacy()  # lazy — only loaded when this tab renders
+    if nlp is None:
         st.warning(
             "spaCy model not loaded. Install with:\n\n"
             "```\npip install spacy\npython -m spacy download es_core_news_sm\n```"
@@ -613,6 +614,6 @@ with st.sidebar:
         with st.expander(f"⚠️ {len(rss_errors)} feed error(s)"):
             for e in rss_errors:
                 st.caption(e)
-    if not SPACY_OK:
+    if _load_spacy() is None:
         st.warning("spaCy not loaded — entity extraction disabled")
     st.caption("v3.0 · Public sources only · No social media scraping · NGO/research use")
