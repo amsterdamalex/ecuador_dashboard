@@ -132,7 +132,7 @@ Then uncomment the `env_file` section in `docker-compose.yml`.
 
 **1.** Push to GitHub (this repo is already set up)
 
-**2.** Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → connect this repo → set main file to `app.py`
+**2.** Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → connect this repo → set main file to `app.py` (or `ecuador_osint_v2.py` — both work)
 
 **3.** Add secrets so keys are pre-loaded (Settings → Secrets):
 
@@ -153,7 +153,8 @@ ecuador_dashboard/
 ├── app.py                ← Streamlit entrypoint (UI wiring)
 ├── config.py             ← Constants (sources, keywords, locations)
 ├── analysis.py           ← Pure functions (severity, sentiment, NER, themes)
-├── fetchers.py           ← Data fetching (RSS, NewsAPI, ACLED)
+├── fetchers.py           ← Data fetching with parallel RSS, timeouts, caching
+├── ecuador_osint_v2.py   ← Compatibility shim (redirects to app.py)
 ├── test_dashboard.py     ← 56-test suite
 ├── requirements.txt      ← All dependencies including spaCy model
 ├── Dockerfile            ← Production container
@@ -169,9 +170,9 @@ ecuador_dashboard/
 | Module | Lines | Depends on Streamlit? | Purpose |
 |--------|------:|:---------------------:|---------|
 | `config.py` | ~70 | No | Constants — sources, keyword themes, severity words, geocoordinates |
-| `analysis.py` | ~130 | No | Pure functions — severity scoring, sentiment, NER, theme tagging, briefing generation |
-| `fetchers.py` | ~95 | Yes (`@st.cache_data`) | Network I/O — RSS, NewsAPI, ACLED with timeouts and caching |
-| `app.py` | ~500 | Yes | UI — page config, sidebar, tabs, charts, map, export |
+| `analysis.py` | ~140 | No | Pure functions — severity scoring, sentiment, NER, theme tagging, briefing generation |
+| `fetchers.py` | ~130 | Yes (`@st.cache_data`) | Parallel RSS fetching (ThreadPoolExecutor), NewsAPI, ACLED — with timeouts and caching |
+| `app.py` | ~620 | Yes | UI — page config, sidebar, tabs, charts, map, export |
 
 ---
 
