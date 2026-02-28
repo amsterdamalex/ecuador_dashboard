@@ -204,11 +204,12 @@ with st.spinner("📡 Fetching public feeds…"):
         except Exception as e:
             return name, None, f"{name}: {e}"
 
-    with ThreadPoolExecutor(max_workers=max(len(selected_sources), 1)) as pool:
-        futures = {pool.submit(_fetch_one, name): name for name in selected_sources}
-        for fut in as_completed(futures, timeout=30):
+    pool = ThreadPoolExecutor(max_workers=max(len(selected_sources), 1))
+    futures = {pool.submit(_fetch_one, name): name for name in selected_sources}
+    try:
+        for fut in as_completed(futures, timeout=20):
             try:
-                name, results, err = fut.result(timeout=15)
+                name, results, err = fut.result(timeout=10)
             except Exception:
                 rss_errors.append(f"{futures[fut]}: timed out")
                 continue
@@ -216,6 +217,12 @@ with st.spinner("📡 Fetching public feeds…"):
                 rss_errors.append(err)
             elif results:
                 all_news.extend(results)
+    except TimeoutError:
+        rss_errors.append("Some feeds timed out")
+    finally:
+        # cancel_futures=True kills any still-running threads immediately
+        # without this, shutdown(wait=True) blocks until ALL futures finish
+        pool.shutdown(wait=False, cancel_futures=True)
 
 if newsapi_key and keyword_list:
     with st.spinner("📰 Fetching NewsAPI…"):
