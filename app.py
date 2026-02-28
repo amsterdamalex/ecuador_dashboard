@@ -71,8 +71,6 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,600;1,300&display=swap');
-
 :root {
     --bg:        #0a0c10;
     --surface:   #111418;
@@ -83,8 +81,8 @@ st.markdown("""
     --ok:        #52b788;
     --text:      #d4dbe8;
     --muted:     #6b7a94;
-    --mono:      'IBM Plex Mono', monospace;
-    --sans:      'IBM Plex Sans', sans-serif;
+    --mono:      'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    --sans:      'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 html, body, [data-testid="stAppViewContainer"] {
@@ -112,6 +110,10 @@ h1,h2,h3,h4 { font-family: var(--mono); color: var(--accent); letter-spacing: -0
        font-size: 0.72rem; margin: 1px; background: var(--border); color: var(--text); }
 hr { border-color: var(--border); }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,600;1,300&display=swap"
+      rel="stylesheet" media="print" onload="this.media='all'">
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
