@@ -22,7 +22,7 @@ Install:
   python -m textblob.download_corpora
 
 Run:
-  streamlit run ecuador_osint_v3.py
+  streamlit run ecuador_osint_v2.py
 """
 newsapi_key = st.secrets.get("NEWSAPI_KEY", "")
 acled_key   = st.secrets.get("ACLED_KEY", "")
