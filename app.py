@@ -11,24 +11,51 @@ Run:
 from collections import Counter
 from datetime import datetime
 
-import folium
 import pandas as pd
-import plotly.express as px
 import streamlit as st
-from streamlit_folium import st_folium
 
-from analysis import (
-    compute_severity,
-    compute_sentiment,
-    detect_locations,
-    extract_entities,
-    generate_briefing,
-    highlight,
-    keyword_match,
-    tag_themes,
-)
-from config import KEYWORD_THEMES, SOURCES
-from fetchers import fetch_acled, fetch_all_rss, fetch_newsapi
+# ── Fault-tolerant imports — show clear errors instead of hanging ─────────────
+_import_errors: list[str] = []
+
+try:
+    import folium
+    from streamlit_folium import st_folium
+except ImportError as e:
+    _import_errors.append(f"Map disabled: {e}")
+    folium = None  # type: ignore[assignment]
+
+try:
+    import plotly.express as px
+except ImportError as e:
+    _import_errors.append(f"Charts disabled: {e}")
+    px = None  # type: ignore[assignment]
+
+try:
+    from analysis import (
+        compute_severity,
+        compute_sentiment,
+        detect_locations,
+        extract_entities,
+        generate_briefing,
+        highlight,
+        keyword_match,
+        tag_themes,
+    )
+except ImportError as e:
+    _import_errors.append(f"Analysis module failed: {e}")
+
+try:
+    from config import KEYWORD_THEMES, SOURCES
+except ImportError as e:
+    _import_errors.append(f"Config module failed: {e}")
+    KEYWORD_THEMES = {}
+    SOURCES = {}
+
+try:
+    from fetchers import fetch_acled, fetch_all_rss, fetch_newsapi
+except ImportError as e:
+    _import_errors.append(f"Fetchers module failed: {e}")
+
 
 # ── spaCy (lazy — loaded only when Entities tab is used) ─────────────────────
 @st.cache_resource
@@ -41,9 +68,14 @@ def _load_spacy():
         return None
 
 # ── Secrets (Streamlit Cloud) or fall back to sidebar inputs ──────────────────
-_secrets_newsapi = st.secrets.get("NEWSAPI_KEY", "") if hasattr(st, "secrets") else ""
-_secrets_acled_key = st.secrets.get("ACLED_KEY", "") if hasattr(st, "secrets") else ""
-_secrets_acled_email = st.secrets.get("ACLED_EMAIL", "") if hasattr(st, "secrets") else ""
+try:
+    _secrets_newsapi = st.secrets.get("NEWSAPI_KEY", "")
+    _secrets_acled_key = st.secrets.get("ACLED_KEY", "")
+    _secrets_acled_email = st.secrets.get("ACLED_EMAIL", "")
+except Exception:
+    _secrets_newsapi = ""
+    _secrets_acled_key = ""
+    _secrets_acled_email = ""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
@@ -104,6 +136,11 @@ hr { border-color: var(--border); }
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,600;1,300&display=swap"
       rel="stylesheet" media="print" onload="this.media='all'">
 """, unsafe_allow_html=True)
+
+# ── Show import errors (if any) so the user sees what's wrong ─────────────────
+if _import_errors:
+    for err in _import_errors:
+        st.error(err)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HEADER
