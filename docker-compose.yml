@@ -1,0 +1,11 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=true
+    # Uncomment and fill in to pre-load API keys:
+    # env_file:
+    #   - .env
+    restart: unless-stopped
