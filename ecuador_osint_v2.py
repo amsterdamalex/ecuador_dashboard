@@ -22,11 +22,8 @@ Install:
   python -m textblob.download_corpora
 
 Run:
-  streamlit run ecuador_osint_v2.py
+  streamlit run ecuador_osint_v3.py
 """
-newsapi_key = st.secrets.get("NEWSAPI_KEY", "")
-acled_key   = st.secrets.get("ACLED_KEY", "")
-acled_email = st.secrets.get("ACLED_EMAIL", "")
 
 # ── stdlib ────────────────────────────────────────────────────────────────────
 import json
@@ -45,6 +42,11 @@ import requests
 import streamlit as st
 from streamlit_folium import st_folium
 from textblob import TextBlob
+
+# ── Secrets (Streamlit Cloud) or fall back to sidebar inputs ──────────────────
+_secrets_newsapi = st.secrets.get("NEWSAPI_KEY", "") if hasattr(st, "secrets") else ""
+_secrets_acled_key = st.secrets.get("ACLED_KEY", "") if hasattr(st, "secrets") else ""
+_secrets_acled_email = st.secrets.get("ACLED_EMAIL", "") if hasattr(st, "secrets") else ""
 
 # spaCy is optional — gracefully degrade if not installed
 try:
@@ -208,11 +210,13 @@ with st.sidebar:
     st.markdown("### ⚙️ Configuration")
     st.divider()
 
-    newsapi_key = st.text_input("NewsAPI.org Key", type="password",
+    newsapi_key = st.text_input("NewsAPI.org Key", value=_secrets_newsapi,
+                                type="password",
                                 help="Free key at newsapi.org — 100 req/day")
-    acled_key   = st.text_input("ACLED API Key", type="password",
+    acled_key   = st.text_input("ACLED API Key", value=_secrets_acled_key,
+                                type="password",
                                 help="Free at acleddata.com — conflict incident data")
-    acled_email = st.text_input("ACLED Email", type="default",
+    acled_email = st.text_input("ACLED Email", value=_secrets_acled_email,
                                 help="Required alongside ACLED key")
 
     st.divider()
@@ -828,8 +832,7 @@ with tab_raw:
         show_cols = ["Severity", "Sentiment", "Title", "Source", "Published", "Themes", "Link"]
         show_cols = [c for c in show_cols if c in df.columns]
         st.dataframe(
-            df[show_cols],
-            use_container_width=True,
+            df[show_cols], use_container_width=True,
             height=600,
             column_config={"Link": st.column_config.LinkColumn()},
         )
@@ -860,7 +863,7 @@ with tab_export:
                 csv_bytes,
                 f"ecuador_osint_{datetime.now():%Y%m%d_%H%M}.csv",
                 "text/csv",
-                use_container_width=True,
+                width="stretch",
             )
 
         with col2:
@@ -872,7 +875,7 @@ with tab_export:
                 json_bytes,
                 f"ecuador_osint_{datetime.now():%Y%m%d_%H%M}.json",
                 "application/json",
-                use_container_width=True,
+                width="stretch",
             )
 
         if not acled_df.empty:
@@ -882,7 +885,7 @@ with tab_export:
                 acled_csv,
                 f"ecuador_acled_{datetime.now():%Y%m%d}.csv",
                 "text/csv",
-                use_container_width=True,
+                width="stretch",
             )
 
         st.caption(f"{len(df)} articles ready · All public sources · Educational use only")
