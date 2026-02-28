@@ -16,13 +16,12 @@ Full analyst toolkit:
 
 Install:
   pip install streamlit pandas feedparser requests folium \
-              streamlit-folium textblob spacy plotly \
-              streamlit-tags babel
+              streamlit-folium textblob spacy plotly
   python -m spacy download es_core_news_sm
   python -m textblob.download_corpora
 
 Run:
-  streamlit run ecuador_osint_v3.py
+  streamlit run ecuador_osint_v2.py
 """
 
 # ── stdlib ────────────────────────────────────────────────────────────────────
@@ -863,7 +862,7 @@ with tab_export:
                 csv_bytes,
                 f"ecuador_osint_{datetime.now():%Y%m%d_%H%M}.csv",
                 "text/csv",
-                width="stretch",
+                use_container_width=True,
             )
 
         with col2:
@@ -875,7 +874,7 @@ with tab_export:
                 json_bytes,
                 f"ecuador_osint_{datetime.now():%Y%m%d_%H%M}.json",
                 "application/json",
-                width="stretch",
+                use_container_width=True,
             )
 
         if not acled_df.empty:
@@ -885,7 +884,7 @@ with tab_export:
                 acled_csv,
                 f"ecuador_acled_{datetime.now():%Y%m%d}.csv",
                 "text/csv",
-                width="stretch",
+                use_container_width=True,
             )
 
         st.caption(f"{len(df)} articles ready · All public sources · Educational use only")
