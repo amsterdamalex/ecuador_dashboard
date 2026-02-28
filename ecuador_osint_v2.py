@@ -29,6 +29,7 @@ import json
 import re
 import textwrap
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 # ── third-party ───────────────────────────────────────────────────────────────
@@ -50,9 +51,22 @@ _secrets_acled_email = st.secrets.get("ACLED_EMAIL", "") if hasattr(st, "secrets
 # spaCy is optional — gracefully degrade if not installed
 try:
     import spacy
-    nlp = spacy.load("es_core_news_sm")
     SPACY_OK = True
-except Exception:
+except ImportError:
+    SPACY_OK = False
+
+
+@st.cache_resource
+def _load_spacy():
+    """Load spaCy model once and cache across reruns."""
+    try:
+        return spacy.load("es_core_news_sm")
+    except Exception:
+        return None
+
+
+nlp = _load_spacy() if SPACY_OK else None
+if nlp is None:
     SPACY_OK = False
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -471,15 +485,23 @@ all_news: list[dict] = []
 rss_errors: list[str] = []
 
 with st.spinner("📡 Fetching public feeds…"):
-    for name in selected_sources:
+    def _fetch_one(name: str) -> tuple[str, list[dict] | None, str | None]:
         url = SOURCES.get(name)
         if not url:
-            continue
+            return name, [], None
         try:
-            results = fetch_rss(url, days_back)
-            all_news.extend(results)
+            return name, fetch_rss(url, days_back), None
         except Exception as e:
-            rss_errors.append(f"{name}: {e}")
+            return name, None, f"{name}: {e}"
+
+    with ThreadPoolExecutor(max_workers=max(len(selected_sources), 1)) as pool:
+        futures = [pool.submit(_fetch_one, name) for name in selected_sources]
+        for fut in as_completed(futures):
+            name, results, err = fut.result()
+            if err:
+                rss_errors.append(err)
+            elif results:
+                all_news.extend(results)
 
 if newsapi_key and keyword_list:
     with st.spinner("📰 Fetching NewsAPI…"):
