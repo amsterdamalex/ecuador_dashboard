@@ -34,6 +34,7 @@ try:
 except ImportError as e:
     _import_errors.append(f"Map disabled: {e}")
     folium = None  # type: ignore[assignment]
+    st_folium = None  # type: ignore[assignment]
 
 try:
     import plotly.express as px
@@ -66,7 +67,7 @@ except Exception as e:
 
 try:
     from config import KEYWORD_THEMES, SOURCES
-except ImportError as e:
+except Exception as e:
     _import_errors.append(f"Config module failed: {e}")
     KEYWORD_THEMES = {}
     SOURCES = {}
