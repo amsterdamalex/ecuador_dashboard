@@ -104,7 +104,7 @@ def fetch_newsapi(api_key: str, keywords: list[str], days_back: int) -> list[dic
                 pub_dt = datetime.min
             results.append({
                 "Title":     a.get("title") or "(no title)",
-                "Source":    a["source"]["name"],
+                "Source":    a.get("source", {}).get("name", "NewsAPI"),
                 "Link":      a.get("url", ""),
                 "Published": pub_dt.strftime("%Y-%m-%d %H:%M") if pub_dt != datetime.min else pub_str[:10],
                 "Summary":   a.get("description") or "",
